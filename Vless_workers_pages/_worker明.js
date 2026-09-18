@@ -409,6 +409,8 @@ async function handleTCPOutBound(
 ) {
   async function connectAndWrite(address, port) {
     if (/^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?).){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/.test(address)) address = `${atob('d3d3Lg==')}${address}${atob('LnNzbGlwLmlv')}`;
+    // connect() joins hostname and port into "host:port", so an IPv6 literal must be wrapped in []
+    if (address.includes(":") && !address.startsWith("[")) address = `[${address}]`;
 	/** @type {any} */
     const tcpSocket = connect({
       hostname: address,
@@ -593,7 +595,7 @@ async function processcloudflareHeader(cloudflareBuffer, userID) {
         ipv6.push(dataView.getUint16(i * 2).toString(16));
       }
       addressValue = ipv6.join(":");
-      // seems no need add [] for ipv6
+      // [] for ipv6 is added in connectAndWrite, right before connect()
       break;
     default:
       return {
