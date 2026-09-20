@@ -40,6 +40,17 @@ let PT12 = '2087'
 let PT13 = '2096'
 
 let sha224Password;
+function timingSafeEqual(a, b) {
+  if (typeof a !== "string" || typeof b !== "string") return false;
+  const maxLen = Math.max(a.length, b.length);
+  let mismatch = a.length === b.length ? 0 : 1;
+  for (let i = 0; i < maxLen; i++) {
+    const ca = i < a.length ? a.charCodeAt(i) : 0;
+    const cb = i < b.length ? b.charCodeAt(i) : 0;
+    mismatch |= ca ^ cb;
+  }
+  return mismatch === 0;
+}
 let proxyIP = proxyIPs[Math.floor(Math.random() * proxyIPs.length)];
 let proxyPort = proxyIP.match(/:(\d+)$/) ? proxyIP.match(/:(\d+)$/)[1] : '443';
 const worker_default = {
@@ -319,7 +330,7 @@ async function parseygkkkHeader(buffer) {
     };
   }
   const password = new TextDecoder().decode(buffer.slice(0, crLfIndex));
-  if (password !== sha224Password) {
+  if (!timingSafeEqual(password, sha224Password)) {
     return {
       hasError: true,
       message: "invalid password",
