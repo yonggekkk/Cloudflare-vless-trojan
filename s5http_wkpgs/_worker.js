@@ -107,8 +107,10 @@ async function handleSession(webSocket) {
     const attempts = [null, ...pyipList];
     for (let i = 0; i < attempts.length; i++) {
       try {
+        // connect()会把hostname与port直接拼成"host:port"，IPv6必须带[]，而parseAddress会去掉[]
+        const target = attempts[i] || host;
         remoteSocket = connect({
-          hostname: attempts[i] || host,
+          hostname: target.includes(':') && !target.startsWith('[') ? `[${target}]` : target,
           port
         });
         if (remoteSocket.opened) await remoteSocket.opened;
