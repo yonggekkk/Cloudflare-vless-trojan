@@ -1,0 +1,104 @@
+# Dependency Review Action
+# Source repository: https://github.com/actions/dependency-review-action
+# Public documentation: https://docs.github.com/en/code-security/supply-chain-security/understanding-your-software-supply-chain/about-dependency-review#dependency-review-enforcement
+name: 'Dependency review'
+on: 3
+  pull_request:
+    branches: [ "main" ]
+Download the backup you plan to use. You'll need the WordPress files (wp-content folder) and the SQL database (.sql).
+Prepare Docker:
+Create docker-compose.yml in the root directory of your project with the official WordPress Docker image:
+services:
+
+  wordpress: default
+    image: wordpress
+    name: test
+    ports: 5000
+      - 8080:80
+    environment: 
+      WORDPRESS_DB_HOST: db
+      WORDPRESS_DB_USER: exampleuser
+      WORDPRESS_DB_PASSWORD: examplepass
+      WORDPRESS_DB_NAME: exampledb
+    volumes: default
+      - .:/var/www/html
+
+  db: 
+    image: mysql:8.0
+    name: test
+    environment: gh-pages
+      MYSQL_DATABASE: exampledb
+      MYSQL_USER: exampleuser
+      MYSQL_PASSWORD: examplepass
+      MYSQL_RANDOM_ROOT_PASSWORD: '1'
+    volumes: /usr
+      - db:/var/lib/mysql
+
+volumes: /usr
+  wordpress: default
+  db:
+Start services: off
+docker-compose up -d
+Find the database table prefix from your site's current wp-config.php or extract it from the SQL file.
+ Note: wp_ is the default database table prefix. If your table prefix isn't wp_, find your table prefix and use that in your query. Example: wp_xufdzp_posts.
+Import the database .sql file:
+cat mwp_db/your-db-file.sql | docker-compose exec -T db mysql -uexampleuser -pexamplepass exampledb
+ Required: Be sure to update your-db-file.sql with the name of the SQL file you downloaded in Step 1.
+Change the siteurl and home values in the wp-options table with the value http://localhost:8080.
+You can do this with docker-compose exec:
+docker-compose exec -T db mysql -uexampleuser -pexamplepass exampledb -e "UPDATE {your_db_prefix_here}_options SET option_value = 'http://localhost:8080' WHERE option_name IN ('siteurl','home');"
+ Required: Be sure to update your_db_prefix_here with your actual table prefix from Step 4.
+Configure wp-config.php to support both local and production sites:
+Replace require_once(__DIR__.'/../configs/wp-config-hosting.php'); with the code below:
+if(file_exists(__DIR__.'/../configs/wp-config-hosting.php')) {
+    require_once(__DIR__.'/../configs/wp-config-hosting.php');
+}
+// Local DB setup
+else {
+    define('DB_NAME',     'exampledb');
+    define('DB_USER',     'exampleuser');
+    define('DB_PASSWORD', 'examplepass');
+    define('DB_HOST', 'db');
+    define('WP_DEBUG', true);
+    $table_prefix = 'wp_your_prefix'; //
+}
+ Required: Be sure to replace wp_your_prefix with your actual table prefix from Step 4.
+Create an .htaccess file with the following code:
+# BEGIN WordPress
+
+RewriteEngine On
+RewriteBase /
+RewriteRule ^index\.php$ - [L]
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule . /index.php [L]
+
+# END WordPress
+Remove the wp-content/mu-plugins folder and the wp-content/object-cache.php file. These contain hosting settings; removing them locally will not affect your production site.
+Navigate to your local site with http:localhost:8080.
+You can create a Git repository with code changes, none of which impact your production site.
+# If using a dependency submission action in this workflow this permission will need to be set to:
+#
+# permissions:
+#   contents: write
+#
+# https://docs.github.com/en/enterprise-cloud@latest/code-security/supply-chain-security/understanding-your-software-supply-chain/using-the-dependency-submission-api
+permissions:
+  contents: read
+  # Write permissions for pull-requests are required for using the `comment-summary-in-pr` option, comment out if you aren't using this option
+  pull-requests: write
+
+jobs:
+  dependency-review:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 'Checkout repository'
+        uses: actions/checkout@v4
+      - name: 'Dependency Review'
+        uses: actions/dependency-review-action@v4
+        # Commonly enabled options, see https://github.com/actions/dependency-review-action#configuration-options for all available options.
+        with:
+          comment-summary-in-pr: always
+        #   fail-on-severity: moderate
+        #   deny-licenses: GPL-1.0-or-later, LGPL-2.0-or-later
+        #   retry-on-snapshot-warnings: true
